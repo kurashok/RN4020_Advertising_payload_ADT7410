@@ -16,7 +16,7 @@
 
 uint16_t  uiTimer_0 ;
 // 温度測定間隔(200ms単位)
-#define MES_INTERVAL 3
+#define MES_INTERVAL 10
 // 温度変換時間(240ms以上)
 #define CONVERSION_WAIT 1
 
@@ -73,6 +73,9 @@ void setup_WDT( uint8_t delay )
 //#define BAUD_PRESCALE 12 // U2X=0 2MHz 9600B
 #define BAUD_PRESCALE 12 // U2X=1 1MHz 9600B
 
+uint8_t bRecieve;
+char *waiting_message;
+
 void setup_USART(void){
 	// Set baud rate
 	UBRR0L = BAUD_PRESCALE;// Load lower 8-bits into the low byte of the UBRR register
@@ -81,7 +84,7 @@ void setup_USART(void){
 	// 倍速ビットON
 	UCSR0A = 2;
 	// Enable receiver and transmitter and receive complete interrupt
-	UCSR0B = ((1<<TXEN0)|(1<<RXEN0) | (0<<RXCIE0));
+	UCSR0B = ((1<<TXEN0)|(1<<RXEN0) | (1<<RXCIE0));
 	UCSR0C = 0b00000110;
 }
 
@@ -115,8 +118,16 @@ void set_BLE_sleep()
 	PORTC &= (~2);	// set C1 Low
 	DDRC |= 2;		// set C1 output
 	_delay_ms(500);	// 必要。大きさ検討
+	
+	bRecieve = 0;
+	waiting_message = "OK";
 	USART_SendStr("AT+SLEEP1\r\n");
-	_delay_ms(500);	// 必要。大きさ検討
+	//_delay_ms(500);	// 必要。大きさ検討
+	set_sleep_mode(SLEEP_MODE_IDLE);
+	while(bRecieve == 0)
+	{
+		sleep_mode();
+	}
 	DDRC &= (~2);	// set C1(PWRC) Hi-Z
 }
 
@@ -137,29 +148,12 @@ void BLE_send_message(char *str)
 #define RCV_SIZE 100
 char RCV_BUF[RCV_SIZE];
 uint8_t RCV_PTR = 0;
-//uint8_t bSleep;
 
 void check_command()
 {
-	if( strstr(RCV_BUF, "+SLEEP") != NULL )
+	if( strstr(RCV_BUF, waiting_message) != NULL )
 	{
-		//bSleep = 1;
-		//PORTC = PORTC | 1;
-	}
-	else if( strstr( RCV_BUF, "+WAKE") != NULL )
-	{
-		//bSleep = 0;
-		//PORTC = PORTC & (~1);
-	}
-	else if( strstr(RCV_BUF, "+CONNECTED") != NULL )
-	{
-		//bConnected = 1;
-		//PORTC = PORTC | 1;
-	}
-	else if( strstr( RCV_BUF, "+DISCONNECTED") != NULL )
-	{
-		//bConnected = 0;
-		//PORTC = PORTC & (~1);
+		bRecieve = 1;
 	}
 }
 
@@ -337,6 +331,7 @@ int main(void)
 	DDRC |= 1;	// set C0(LED) output
 
 	_delay_ms(1000*2);
+	sei();			// 割込みを許可する。
 	set_BLE_sleep();
 
 	setup_iic();
@@ -345,12 +340,11 @@ int main(void)
 	//Timer_init();
 	bMes_cycle = 0;
 
-	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	sei();			// 割込みを許可する。
 	uiTimer_0 = 1;
 	while (1)
 	{
 		setup_WDT(9);
+		set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 		sleep_mode();
 		meas();
 	}
