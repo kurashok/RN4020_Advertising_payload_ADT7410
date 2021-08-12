@@ -9,6 +9,8 @@
 #ifndef IIC_H_
 #define IIC_H_
 
+//#define USE_INNER_PULLUP	// IOピンの内蔵プルアップを使用する
+
 // I2CにはPortCの4,5番ピンを使用
 #define I2C_DDDR	DDRC
 #define I2C_DPIN	PINC
@@ -16,15 +18,23 @@
 #define I2C_SCL		PINC5
 #define I2C_SDA		PINC4
 
-// HIZを有効にするため、MCUCRのPUDは1をセット
-#define DISENABLE_PULLUP	MCUCR |= (1<<PUD)
-
+// AVR内部のプルアップを使用する場合は以下。LOW時は出力・LOW設定。HI時は入力・HI設定(Pull-up)。
+#ifdef USE_INNER_PULLUP
+#define SCL_LOW		I2C_DDDR |= (1<<I2C_SCL); I2C_DPORT &= ~(1<<I2C_SCL);
+#define SCL_HIGH	I2C_DDDR &= ~(1<<I2C_SCL); I2C_DPORT |= (1<<I2C_SCL);	/* SCL = High-Z */
+#define	SCL_VAL		((I2C_DPIN & (1<<I2C_SCL)) ? 1 : 0)	/* SCL input level */
+#define SDA_LOW		I2C_DDDR |= (1<<I2C_SDA); I2C_DPORT &= ~(1<<I2C_SDA);
+#define SDA_HIGH	I2C_DDDR &= ~(1<<I2C_SDA); I2C_DPORT |= (1<<I2C_SDA);			/* SDA = High-Z */
+#define	SDA_VAL		((I2C_DPIN & (1<<I2C_SDA)) ? 1 : 0)	/* SDA input level */
+#else
+// AVR内部のプルアップを使用しない場合は以下。いつもLOW設定。LOW時は出力。HI時は入力。
 #define SCL_LOW		I2C_DDDR |= (1<<I2C_SCL)
 #define SCL_HIGH	I2C_DDDR &= ~(1<<I2C_SCL)	/* SCL = High-Z */
 #define	SCL_VAL		((I2C_DPIN & (1<<I2C_SCL)) ? 1 : 0)	/* SCL input level */
 #define SDA_LOW		I2C_DDDR |= (1<<I2C_SDA)
 #define SDA_HIGH	I2C_DDDR &= ~(1<<I2C_SDA)			/* SDA = High-Z */
 #define	SDA_VAL		((I2C_DPIN & (1<<I2C_SDA)) ? 1 : 0)	/* SDA input level */
+#endif
 
 void setup_iic(void);
 
